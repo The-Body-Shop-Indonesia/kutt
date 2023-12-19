@@ -490,8 +490,8 @@ const Row: FC<RowProps> = ({ index, link, setDeleteModal }) => {
         show={qrModal}
         closeHandler={() => setQRModal(false)}
       >
-        <RowCenter width={192}>
-          <QRCode size={192} value={link.link} />
+        <RowCenter width={750}>
+          <QRCode size={750} value={link.link} />
         </RowCenter>
       </Modal>
       <Modal
