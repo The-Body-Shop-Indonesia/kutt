@@ -1,0 +1,44 @@
+apiVersion: apps/v1 #  for k8s versions before 1.9.0 use apps/v1beta2  and before 1.8.0 use extensions/v1beta1
+kind: Deployment
+metadata:
+  # This name uniquely identifies the Deployment
+  name: kutt
+spec:
+  selector:
+    matchLabels:
+      app: kutt
+  replicas: 1
+  revisionHistoryLimit: 3 
+  template:
+    metadata:
+      annotations:
+        co.elastic.logs/enabled: "false"
+        co.elastic.logs/exclude_lines: '.*VERBOSE.*'
+      labels:
+        # Label is used as selector in the service.
+        app: kutt
+    spec:
+      # Refer to the PVC created earlier
+      imagePullSecrets:
+      - name: tbsi-jfrog
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: be-api-products
+      containers:
+      - name: kutt
+        image: {{ image_registry }}/{{ image_id }}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        resources:
+         limits:
+           cpu: 500m
+           memory: 512Mi
+         requests:
+           cpu: 250m
+           memory: 256Mi
+        
