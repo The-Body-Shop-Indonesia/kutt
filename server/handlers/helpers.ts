@@ -1,10 +1,10 @@
-import { Handler, ErrorRequestHandler } from "express";
+import { ErrorRequestHandler, Handler } from "express";
 import { validationResult } from "express-validator";
 import signale from "signale";
 
-import { CustomError } from "../utils";
-import env from "../env";
 import { logger } from "../config/winston";
+import env from "../env";
+import { CustomError } from "../utils";
 
 export const ip: Handler = (req, res, next) => {
   req.realIP =
@@ -64,7 +64,9 @@ export const query: Handler = (req, res, next) => {
   const skip = parseInt(req.query.skip) || 0;
 
   req.context = {
+    //cek limit disini 1000
     limit: limit > 50 ? 50 : limit,
+    // limit: limit,
     skip,
     all: admin ? req.query.all === "true" : false
   };

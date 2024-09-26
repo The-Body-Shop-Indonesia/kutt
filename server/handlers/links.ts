@@ -1,24 +1,24 @@
-import { Handler } from "express";
-import { promisify } from "util";
 import bcrypt from "bcryptjs";
+import dns from "dns";
+import { Handler } from "express";
 import isbot from "isbot";
 import next from "next";
 import URL from "url";
-import dns from "dns";
+import { promisify } from "util";
 
-import * as validators from "./validators";
-import { CreateLinkReq } from "./types";
-import { CustomError } from "../utils";
+import env from "../env";
 import transporter from "../mail/mail";
-import * as utils from "../utils";
 import query from "../queries";
 import queue from "../queues";
-import env from "../env";
+import * as utils from "../utils";
+import { CustomError } from "../utils";
+import { CreateLinkReq } from "./types";
+import * as validators from "./validators";
 
 const dnsLookup = promisify(dns.lookup);
 
 export const get: Handler = async (req, res) => {
-  const { limit, skip, all } = req.context;
+  const { limit, skip, all = true } = req.context;
   const search = req.query.search as string;
   const userId = req.user.id;
 
@@ -42,15 +42,8 @@ export const get: Handler = async (req, res) => {
 };
 
 export const create: Handler = async (req: CreateLinkReq, res) => {
-  const {
-    reuse,
-    password,
-    customurl,
-    description,
-    target,
-    domain,
-    expire_in
-  } = req.body;
+  const { reuse, password, customurl, description, target, domain, expire_in } =
+    req.body;
   const domain_id = domain ? domain.id : null;
 
   const targetDomain = utils.removeWww(URL.parse(target).hostname);
@@ -252,67 +245,74 @@ export const ban: Handler = async (req, res) => {
   return res.status(200).send({ message: "Banned link successfully." });
 };
 
-export const redirect = (app: ReturnType<typeof next>): Handler => async (
-  req,
-  res,
-  next
-) => {
-  const isBot = isbot(req.headers["user-agent"]);
-  const isPreservedUrl = validators.preservedUrls.some(
-    item => item === req.path.replace("/", "")
-  );
+//custom url handler
+export const redirect =
+  (app: ReturnType<typeof next>): Handler =>
+  async (req, res, next) => {
+    const isBot = isbot(req.headers["user-agent"]);
+    const isPreservedUrl = validators.preservedUrls.some(
+      (item) => item === req.path.replace("/", "")
+    );
 
-  if (isPreservedUrl) return next();
+    if (isPreservedUrl) return next();
 
-  // 1. If custom domain, get domain info
-  const host = utils.removeWww(req.headers.host);
-  const domain =
-    host !== env.DEFAULT_DOMAIN
-      ? await query.domain.find({ address: host })
-      : null;
+    // 1. If custom domain, get domain info
+    const host = utils.removeWww(req.headers.host);
+    const domain =
+      host !== env.DEFAULT_DOMAIN
+        ? await query.domain.find({ address: host })
+        : null;
 
-  // 2. Get link
-  const address = req.params.id.replace("+", "");
-  const link = await query.link.find({
-    address,
-    domain_id: domain ? domain.id : null
-  });
+    // 2. Get link
+    const regex = /^\d{8,12}_.+$/;
 
-  // 3. When no link, if has domain redirect to domain's homepage
-  // otherwise redirect to 404
-  if (!link) {
-    return res.redirect(302, domain ? domain.homepage : "/404");
-  }
+    let address;
+    if (regex.test(req.params.id)) {
+      address = req.params.id.split("_")[0];
+    } else {
+      address = req.params.id;
+    }
 
-  // 4. If link is banned, redirect to banned page.
-  if (link.banned) {
-    return res.redirect("/banned");
-  }
-
-  // 5. If wants to see link info, then redirect
-  const doesRequestInfo = /.*\+$/gi.test(req.params.id);
-  if (doesRequestInfo && !link.password) {
-    return app.render(req, res, "/url-info", { target: link.target });
-  }
-
-  // 6. If link is protected, redirect to password page
-  if (link.password) {
-    return res.redirect(`/protected/${link.uuid}`);
-  }
-
-  // 7. Create link visit
-  if (link.user_id && !isBot) {
-    queue.visit.add({
-      headers: req.headers,
-      realIP: req.realIP,
-      referrer: req.get("Referrer"),
-      link
+    const link = await query.link.find({
+      address,
+      domain_id: domain ? domain.id : null
     });
-  }
 
-  // 8. Redirect to target
-  return res.redirect(link.target);
-};
+    // 3. When no link, if has domain redirect to domain's homepage
+    // otherwise redirect to 404
+    if (!link) {
+      return res.redirect(302, domain ? domain.homepage : "/404");
+    }
+
+    // 4. If link is banned, redirect to banned page.
+    if (link.banned) {
+      return res.redirect("/banned");
+    }
+
+    // 5. If wants to see link info, then redirect
+    const doesRequestInfo = /.*\+$/gi.test(req.params.id);
+    if (doesRequestInfo && !link.password) {
+      return app.render(req, res, "/url-info", { target: link.target });
+    }
+
+    // 6. If link is protected, redirect to password page
+    if (link.password) {
+      return res.redirect(`/protected/${link.uuid}`);
+    }
+
+    // 7. Create link visit
+    if (link.user_id && !isBot) {
+      queue.visit.add({
+        headers: req.headers,
+        realIP: req.realIP,
+        referrer: req.get("Referrer"),
+        link
+      });
+    }
+
+    // 8. Redirect to target
+    return res.redirect(link.target);
+  };
 
 export const redirectProtected: Handler = async (req, res) => {
   // 1. Get link
@@ -356,8 +356,8 @@ export const redirectCustomDomain: Handler = async (req, res, next) => {
   if (
     path === "/" ||
     validators.preservedUrls
-      .filter(l => l !== "url-password")
-      .some(item => item === path.replace("/", ""))
+      .filter((l) => l !== "url-password")
+      .some((item) => item === path.replace("/", ""))
   ) {
     const domain = await query.domain.find({ address: host });
     const redirectURL = domain
