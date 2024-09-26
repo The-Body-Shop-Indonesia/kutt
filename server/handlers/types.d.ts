@@ -11,3 +11,7 @@ export interface CreateLinkReq extends Request {
     target: string;
   };
 }
+
+export interface CreateMultiLinkReq extends Request {
+  urls: CreateLinkReq[];
+}

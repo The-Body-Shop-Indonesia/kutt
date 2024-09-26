@@ -1,17 +1,17 @@
-import { differenceInMinutes, addMinutes, subMinutes } from "date-fns";
-import { Handler } from "express";
-import passport from "passport";
-import bcrypt from "bcryptjs";
-import nanoid from "nanoid";
-import { v4 as uuid } from "uuid";
 import axios from "axios";
+import bcrypt from "bcryptjs";
+import { addMinutes, differenceInMinutes, subMinutes } from "date-fns";
+import { Handler } from "express";
+import nanoid from "nanoid";
+import passport from "passport";
+import { v4 as uuid } from "uuid";
 
-import { CustomError } from "../utils";
-import * as utils from "../utils";
-import * as redis from "../redis";
+import env from "../env";
 import * as mail from "../mail";
 import query from "../queries";
-import env from "../env";
+import * as redis from "../redis";
+import * as utils from "../utils";
+import { CustomError } from "../utils";
 
 const authenticate = (
   type: "jwt" | "local" | "localapikey",
